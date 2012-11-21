@@ -46,11 +46,17 @@ func (t *TopSampler) Stop() {
 func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 	// %CPU(field=8) + %MEM(field=9)
 	t.stop = make(chan bool)
-	t.Samples = make([]Data, 2)
+	t.Samples = make([]Data, 5)
 	t.Samples[0].label = "CPU"
 	t.Samples[0].data = make([]float64, 1)
 	t.Samples[1].label = "MEM"
 	t.Samples[1].data = make([]float64, 1)
+	t.Samples[2].label = "VIRT (m)" // top field 4
+	t.Samples[2].data = make([]float64, 1)
+	t.Samples[3].label = "RES (m)" // top field 5
+	t.Samples[3].data = make([]float64, 1)
+	t.Samples[4].label = "SHR (m)" // top field 6
+	t.Samples[4].data = make([]float64, 1)
 	raw := "(?m)%d.*$"
 	r := regexp.MustCompile(fmt.Sprintf(raw, cmd.Process.Pid))
 	for {
@@ -74,8 +80,23 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 				if err != nil {
 					log.Fatal(err)
 				}
+				virt, err := strconv.ParseFloat(strings.Replace(fields[4], "m", "", 1), 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+				res, err := strconv.ParseFloat(strings.Replace(fields[5], "m", "", 1), 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+				shr, err := strconv.ParseFloat(strings.Replace(fields[6], "m", "", 1), 64)
+				if err != nil {
+					log.Fatal(err)
+				}
 				t.Samples[0].data = append(t.Samples[0].data, cpu) // CPU
 				t.Samples[1].data = append(t.Samples[1].data, mem) // MEM
+				t.Samples[2].data = append(t.Samples[2].data, virt)
+				t.Samples[3].data = append(t.Samples[3].data, res)
+				t.Samples[4].data = append(t.Samples[3].data, shr)
 				log.Printf("%+v", fields)
 			}
 		}
