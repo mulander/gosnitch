@@ -1,6 +1,13 @@
+// Copyright (c) 2012, mulander <netprobe@gmail.com>
+// All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 package main
 
 import (
+	"code.google.com/p/plotinum/plot"
+	"code.google.com/p/plotinum/plotter"
+	"code.google.com/p/plotinum/plotutil"
 	"fmt"
 	"log"
 	"os/exec"
@@ -82,7 +89,7 @@ type Project struct {
 	Sampler    Sampler
 }
 
-func (p *Project) Exec() {
+func (p *Project) Exec(samplers chan []Data) {
 	err := p.Command.Start()
 	if err != nil {
 		log.Fatal(err)
@@ -92,7 +99,7 @@ func (p *Project) Exec() {
 
 	// Possibly more samplers in the future
 	var wg sync.WaitGroup
-	samplers := make(chan []Data)
+
 	wg.Add(1)
 	go func(n int) {
 		defer wg.Done()
@@ -122,11 +129,6 @@ func (p *Project) Exec() {
 	ticker.Stop()
 	log.Printf("Stopping samplers")
 	p.Sampler.Stop()
-	log.Printf("Waiting for the samplers")
-	for s := range samplers {
-		log.Printf("%+v", s)
-	}
-
 }
 
 func main() {
@@ -137,5 +139,37 @@ func main() {
 		Executions: 1,
 		Sampler:    &TopSampler{}}
 
-	project.Exec()
+	samplers := make(chan []Data)
+
+	project.Exec(samplers)
+
+	log.Printf("Waiting for the samplers")
+	for s := range samplers {
+		log.Printf("%+v", s)
+
+		for _, sample := range s {
+
+			p, err := plot.New()
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			p.Title.Text = fmt.Sprintf("%s graph", sample.label)
+			p.X.Label.Text = fmt.Sprintf("tick per %s", project.Sampling)
+			p.Y.Label.Text = sample.label
+
+			pts := make(plotter.XYs, len(sample.data))
+			for i := range pts {
+				pts[i].X = float64(i)
+				pts[i].Y = sample.data[i]
+			}
+
+			plotutil.AddLinePoints(p, sample.label, pts)
+			plotFile := fmt.Sprintf("%s-%s.png", project.Command.Args[0], sample.label)
+
+			if err := p.Save(4, 4, plotFile); err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 }
