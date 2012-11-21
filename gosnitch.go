@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -83,6 +84,7 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 
 type Project struct {
 	Command    *exec.Cmd     // executable to run during the test
+	Directory  string        // working directory for running the project
 	Duration   time.Duration // duration of a single sample
 	Sampling   time.Duration // trigger sampling based on this interval
 	Executions int           // the total number of runs for a single test
@@ -139,6 +141,13 @@ func main() {
 		Executions: 1,
 		Sampler:    &TopSampler{}}
 
+
+	// Change the working directory if needed
+	if project.Directory != "" {
+		project.Command.Dir = project.Directory
+		log.Printf("Set project directory to: %s", project.Directory)
+	}
+
 	samplers := make(chan []Data)
 
 	project.Exec(samplers)
@@ -165,7 +174,7 @@ func main() {
 			}
 
 			plotutil.AddLinePoints(p, sample.label, pts)
-			plotFile := fmt.Sprintf("%s-%s.png", project.Command.Args[0], sample.label)
+			plotFile := fmt.Sprintf("%s-%s.png", path.Base(project.Command.Args[0]), sample.label)
 
 			if err := p.Save(4, 4, plotFile); err != nil {
 				log.Fatal(err)
