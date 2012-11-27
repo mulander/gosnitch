@@ -8,7 +8,9 @@ import (
 	"code.google.com/p/plotinum/plot"
 	"code.google.com/p/plotinum/plotter"
 	"code.google.com/p/plotinum/plotutil"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os/exec"
 	"path"
@@ -154,14 +156,82 @@ func (p *Project) Exec(samplers chan []Data) {
 	p.Sampler.Stop()
 }
 
-func main() {
-	project := &Project{
-		Command:    exec.Command("yes"),
-		Duration:   10 * time.Second,
-		Sampling:   1 * time.Second,
-		Executions: 1,
-		Sampler:    &TopSampler{}}
+type Config struct {
+	Command    string
+	Directory  string
+	Duration   string
+	Sampling   string
+	Executions int
+	Sampler    string
+}
 
+func (c *Config) GetDuration() time.Duration {
+	strlen := len(c.Duration) - 1
+	value, err := strconv.ParseFloat(c.Duration[:strlen], 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	duration := time.Duration(value)
+
+	switch c.Duration[strlen:] {
+	case "h":
+		duration *= time.Hour
+	case "m":
+		duration *= time.Minute
+	case "s":
+		duration *= time.Second
+	}
+	return duration
+}
+
+func (c *Config) GetSampling() time.Duration {
+	strlen := len(c.Sampling) - 1
+	value, err := strconv.ParseFloat(c.Sampling[:strlen], 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	sampling := time.Duration(value)
+
+	switch c.Sampling[strlen:] {
+	case "h":
+		sampling *= time.Hour
+	case "m":
+		sampling *= time.Minute
+	case "s":
+		sampling *= time.Second
+	}
+	return sampling
+}
+
+func (c *Config) GetSampler() Sampler {
+	if c.Sampler != "TopSampler" {
+		log.Fatal("Unknown sampler")
+	}
+	return &TopSampler{}
+}
+
+func main() {
+
+	jsonConfig, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var config = Config{}
+	err = json.Unmarshal(jsonConfig, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	project := &Project{
+		Command:    exec.Command(config.Command),
+		Directory:  config.Directory,
+		Duration:   config.GetDuration(),
+		Sampling:   config.GetSampling(),
+		Executions: config.Executions,
+		Sampler:    config.GetSampler()}
 
 	// Change the working directory if needed
 	if project.Directory != "" {

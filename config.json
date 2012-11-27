@@ -1,0 +1,6 @@
+{"Command"   : "/usr/bin/yes"
+,"Directory" : ""
+,"Duration"  : "10s"
+,"Sampling"  : "1s"
+,"Executions": 1
+,"Sampler"   : "TopSampler"}
