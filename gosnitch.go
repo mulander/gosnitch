@@ -21,6 +21,20 @@ import (
 	"time"
 )
 
+type ByteSize float64
+
+const (
+	_           = iota // ignore first value by assigning to blank identifier
+	KB ByteSize = 1 << (10 * iota)
+	MB
+	GB
+	TB
+	PB
+	EB
+	ZB
+	YB
+)
+
 type Sampler interface {
 	Sample(cmd *exec.Cmd, ticker *time.Ticker)
 	GetData() []Data
@@ -43,6 +57,30 @@ func (t *TopSampler) GetData() []Data {
 
 func (t *TopSampler) Stop() {
 	t.stop <- true
+}
+
+func (t *TopSampler) toMB(field string) float64 {
+	strlen := len(field) - 1
+	value, err := strconv.ParseFloat(field[:strlen], 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	unit := ByteSize(value)
+
+	switch field[strlen:] {
+	case "m": // do nothing, correct unit
+	case "g": // convert to MB
+		unit = (unit * GB) / MB
+	default: // convert to MB
+		value, err := strconv.ParseFloat(field, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		unit = ByteSize(value)
+		unit = (unit * KB) / MB
+	}
+	return float64(unit)
 }
 
 func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
@@ -82,18 +120,10 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 				if err != nil {
 					log.Fatal(err)
 				}
-				virt, err := strconv.ParseFloat(strings.Replace(fields[4], "m", "", 1), 64)
-				if err != nil {
-					log.Fatal(err)
-				}
-				res, err := strconv.ParseFloat(strings.Replace(fields[5], "m", "", 1), 64)
-				if err != nil {
-					log.Fatal(err)
-				}
-				shr, err := strconv.ParseFloat(strings.Replace(fields[6], "m", "", 1), 64)
-				if err != nil {
-					log.Fatal(err)
-				}
+				virt := t.toMB(fields[4])
+				res := t.toMB(fields[5])
+				shr := t.toMB(fields[6])
+
 				t.Samples[0].data = append(t.Samples[0].data, cpu) // CPU
 				t.Samples[1].data = append(t.Samples[1].data, mem) // MEM
 				t.Samples[2].data = append(t.Samples[2].data, virt)
