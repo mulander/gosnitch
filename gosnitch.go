@@ -188,6 +188,7 @@ func (p *Project) Exec(samplers chan []Data) {
 
 type Config struct {
 	Command    string
+	Arguments  []string
 	Directory  string
 	Duration   string
 	Sampling   string
@@ -244,7 +245,7 @@ func main() {
 	}
 
 	project := &Project{
-		Command:    exec.Command(config.Command),
+		Command:    exec.Command(config.Command,config.Arguments...),
 		Directory:  config.Directory,
 		Duration:   config.GetDuration(),
 		Sampling:   config.GetSampling(),

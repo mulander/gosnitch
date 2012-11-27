@@ -1,4 +1,5 @@
 {"Command"   : "/usr/bin/yes"
+,"Arguments" : []
 ,"Directory" : ""
 ,"Duration"  : "10s"
 ,"Sampling"  : "1s"
