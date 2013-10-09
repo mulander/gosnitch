@@ -196,32 +196,20 @@ type Config struct {
 	Sampler    string
 }
 
-func (c *Config) toDuration(field string) time.Duration {
-	strlen := len(field) - 1
-	value, err := strconv.ParseFloat(field[:strlen], 64)
+func (c *Config) GetDuration() time.Duration {
+	dur, err := time.ParseDuration(c.Duration)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	duration := time.Duration(value)
-
-	switch field[strlen:] {
-	case "h":
-		duration *= time.Hour
-	case "m":
-		duration *= time.Minute
-	case "s":
-		duration *= time.Second
-	}
-	return duration
-}
-
-func (c *Config) GetDuration() time.Duration {
-	return c.toDuration(c.Duration)
+	return dur
 }
 
 func (c *Config) GetSampling() time.Duration {
-	return c.toDuration(c.Sampling)
+	dur, err := time.ParseDuration(c.Duration)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return dur
 }
 
 func (c *Config) GetSampler() Sampler {
@@ -245,7 +233,7 @@ func main() {
 	}
 
 	project := &Project{
-		Command:    exec.Command(config.Command,config.Arguments...),
+		Command:    exec.Command(config.Command, config.Arguments...),
 		Directory:  config.Directory,
 		Duration:   config.GetDuration(),
 		Sampling:   config.GetSampling(),
