@@ -2,18 +2,12 @@
 // All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-package main
+package gosnitch
 
 import (
-	"code.google.com/p/plotinum/plot"
-	"code.google.com/p/plotinum/plotter"
-	"code.google.com/p/plotinum/plotutil"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os/exec"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,8 +36,8 @@ type Sampler interface {
 }
 
 type Data struct {
-	label string
-	data  []float64
+	Label string
+	Data  []float64
 }
 
 type TopSampler struct {
@@ -87,16 +81,16 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 	// %CPU(field=8) + %MEM(field=9)
 	t.stop = make(chan bool)
 	t.Samples = make([]Data, 5)
-	t.Samples[0].label = "CPU"
-	t.Samples[0].data = make([]float64, 1)
-	t.Samples[1].label = "MEM"
-	t.Samples[1].data = make([]float64, 1)
-	t.Samples[2].label = "VIRT (m)" // top field 4
-	t.Samples[2].data = make([]float64, 1)
-	t.Samples[3].label = "RES (m)" // top field 5
-	t.Samples[3].data = make([]float64, 1)
-	t.Samples[4].label = "SHR (m)" // top field 6
-	t.Samples[4].data = make([]float64, 1)
+	t.Samples[0].Label = "CPU"
+	t.Samples[0].Data = make([]float64, 1)
+	t.Samples[1].Label = "MEM"
+	t.Samples[1].Data = make([]float64, 1)
+	t.Samples[2].Label = "VIRT (m)" // top field 4
+	t.Samples[2].Data = make([]float64, 1)
+	t.Samples[3].Label = "RES (m)" // top field 5
+	t.Samples[3].Data = make([]float64, 1)
+	t.Samples[4].Label = "SHR (m)" // top field 6
+	t.Samples[4].Data = make([]float64, 1)
 	raw := "(?m)%d.*$"
 	r := regexp.MustCompile(fmt.Sprintf(raw, cmd.Process.Pid))
 	for {
@@ -124,11 +118,11 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 				res := t.toMB(fields[5])
 				shr := t.toMB(fields[6])
 
-				t.Samples[0].data = append(t.Samples[0].data, cpu) // CPU
-				t.Samples[1].data = append(t.Samples[1].data, mem) // MEM
-				t.Samples[2].data = append(t.Samples[2].data, virt)
-				t.Samples[3].data = append(t.Samples[3].data, res)
-				t.Samples[4].data = append(t.Samples[3].data, shr)
+				t.Samples[0].Data = append(t.Samples[0].Data, cpu) // CPU
+				t.Samples[1].Data = append(t.Samples[1].Data, mem) // MEM
+				t.Samples[2].Data = append(t.Samples[2].Data, virt)
+				t.Samples[3].Data = append(t.Samples[3].Data, res)
+				t.Samples[4].Data = append(t.Samples[3].Data, shr)
 				log.Printf("%+v", fields)
 			}
 		}
@@ -217,66 +211,4 @@ func (c *Config) GetSampler() Sampler {
 		log.Fatal("Unknown sampler")
 	}
 	return &TopSampler{}
-}
-
-func main() {
-
-	jsonConfig, err := ioutil.ReadFile("config.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var config = Config{}
-	err = json.Unmarshal(jsonConfig, &config)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	project := &Project{
-		Command:    exec.Command(config.Command, config.Arguments...),
-		Directory:  config.Directory,
-		Duration:   config.GetDuration(),
-		Sampling:   config.GetSampling(),
-		Executions: config.Executions,
-		Sampler:    config.GetSampler()}
-
-	// Change the working directory if needed
-	if project.Directory != "" {
-		project.Command.Dir = project.Directory
-		log.Printf("Set project directory to: %s", project.Directory)
-	}
-
-	samplers := make(chan []Data)
-
-	project.Exec(samplers)
-
-	log.Printf("Waiting for the samplers")
-	for s := range samplers {
-		log.Printf("%+v", s)
-
-		for _, sample := range s {
-
-			p, err := plot.New()
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			p.Title.Text = fmt.Sprintf("%s graph", sample.label)
-			p.X.Label.Text = fmt.Sprintf("tick per %s", project.Sampling)
-			p.Y.Label.Text = sample.label
-
-			pts := make(plotter.XYs, len(sample.data))
-			for i := range pts {
-				pts[i].X = float64(i)
-				pts[i].Y = sample.data[i]
-			}
-
-			plotutil.AddLinePoints(p, sample.label, pts)
-			plotFile := fmt.Sprintf("%s-%s.png", path.Base(project.Command.Args[0]), sample.label)
-
-			if err := p.Save(4, 4, plotFile); err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
 }
