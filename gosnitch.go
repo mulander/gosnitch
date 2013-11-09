@@ -5,6 +5,7 @@
 package gosnitch
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os/exec"
@@ -211,4 +212,24 @@ func (c *Config) GetSampler() Sampler {
 		log.Fatal("Unknown sampler")
 	}
 	return &TopSampler{}
+}
+
+func Pidof(name string) int {
+	cmd := exec.Command("pidof", name)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("Pidof fail: %s", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		log.Fatalf("Pidof.Wait fail: %s", err)
+	}
+
+	pid, err := strconv.ParseInt(strings.Trim(out.String(), "\n"), 10, 32)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return int(pid)
 }
