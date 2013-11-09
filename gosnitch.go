@@ -30,7 +30,7 @@ const (
 )
 
 type Sampler interface {
-	Sample(cmd *exec.Cmd, ticker *time.Ticker)
+	Sample(pid int, ticker *time.Ticker)
 	GetData() []Data
 	Stop()
 }
@@ -77,7 +77,7 @@ func (t *TopSampler) toMB(field string) float64 {
 	return float64(unit)
 }
 
-func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
+func (t *TopSampler) Sample(pid int, ticker *time.Ticker) {
 	// %CPU(field=8) + %MEM(field=9)
 	t.stop = make(chan bool)
 	t.Samples = make([]Data, 5)
@@ -92,13 +92,13 @@ func (t *TopSampler) Sample(cmd *exec.Cmd, ticker *time.Ticker) {
 	t.Samples[4].Label = "SHR (m)" // top field 6
 	t.Samples[4].Data = make([]float64, 1)
 	raw := "(?m)%d.*$"
-	r := regexp.MustCompile(fmt.Sprintf(raw, cmd.Process.Pid))
+	r := regexp.MustCompile(fmt.Sprintf(raw, pid))
 	for {
 		select {
 		case <-t.stop:
 			return
 		case <-ticker.C:
-			top := exec.Command("top", "-b", "-n 1", fmt.Sprintf("-p %d", cmd.Process.Pid))
+			top := exec.Command("top", "-b", "-n 1", fmt.Sprintf("-p %d", pid))
 			log.Printf("Sampling the process")
 			out, err := top.Output()
 			if err != nil {
@@ -152,7 +152,7 @@ func (p *Project) Exec(samplers chan []Data) {
 	wg.Add(1)
 	go func(n int) {
 		defer wg.Done()
-		p.Sampler.Sample(p.Command, ticker)
+		p.Sampler.Sample(p.Command.Process.Pid, ticker)
 		samplers <- p.Sampler.GetData()
 	}(1)
 	go func() {
