@@ -86,15 +86,15 @@ func NewTopSampler(pid int) Sampler {
 	sampler.Samples = make([]Data, 5)
 	// %CPU(field=8) + %MEM(field=9)
 	sampler.Samples[0].Label = "CPU"
-	sampler.Samples[0].Data = make([]float64, 1)
+	sampler.Samples[0].Data = make([]float64, 0)
 	sampler.Samples[1].Label = "MEM"
-	sampler.Samples[1].Data = make([]float64, 1)
+	sampler.Samples[1].Data = make([]float64, 0)
 	sampler.Samples[2].Label = "VIRT (m)" // top field 4
-	sampler.Samples[2].Data = make([]float64, 1)
+	sampler.Samples[2].Data = make([]float64, 0)
 	sampler.Samples[3].Label = "RES (m)" // top field 5
-	sampler.Samples[3].Data = make([]float64, 1)
+	sampler.Samples[3].Data = make([]float64, 0)
 	sampler.Samples[4].Label = "SHR (m)" // top field 6
-	sampler.Samples[4].Data = make([]float64, 1)
+	sampler.Samples[4].Data = make([]float64, 0)
 	raw := "(?m)%d.*$"
 	sampler.regex = regexp.MustCompile(fmt.Sprintf(raw, pid))
 	return sampler
@@ -126,7 +126,7 @@ func (t *TopSampler) Probe(pid int) {
 		t.Samples[1].Data = append(t.Samples[1].Data, mem) // MEM
 		t.Samples[2].Data = append(t.Samples[2].Data, virt)
 		t.Samples[3].Data = append(t.Samples[3].Data, res)
-		t.Samples[4].Data = append(t.Samples[3].Data, shr)
+		t.Samples[4].Data = append(t.Samples[4].Data, shr)
 		log.Printf("%+v", fields)
 	}
 }
