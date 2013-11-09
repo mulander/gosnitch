@@ -31,6 +31,7 @@ const (
 )
 
 type Sampler interface {
+	Probe(pid int)
 	Sample(pid int, ticker *time.Ticker)
 	GetData() []Data
 	Stop()
@@ -44,6 +45,7 @@ type Data struct {
 type TopSampler struct {
 	Samples []Data
 	stop    chan bool
+	regex   *regexp.Regexp
 }
 
 func (t *TopSampler) GetData() []Data {
@@ -78,54 +80,68 @@ func (t *TopSampler) toMB(field string) float64 {
 	return float64(unit)
 }
 
-func (t *TopSampler) Sample(pid int, ticker *time.Ticker) {
+func NewTopSampler(pid int) Sampler {
+	sampler := &TopSampler{}
+	sampler.stop = make(chan bool)
+	sampler.Samples = make([]Data, 5)
 	// %CPU(field=8) + %MEM(field=9)
-	t.stop = make(chan bool)
-	t.Samples = make([]Data, 5)
-	t.Samples[0].Label = "CPU"
-	t.Samples[0].Data = make([]float64, 1)
-	t.Samples[1].Label = "MEM"
-	t.Samples[1].Data = make([]float64, 1)
-	t.Samples[2].Label = "VIRT (m)" // top field 4
-	t.Samples[2].Data = make([]float64, 1)
-	t.Samples[3].Label = "RES (m)" // top field 5
-	t.Samples[3].Data = make([]float64, 1)
-	t.Samples[4].Label = "SHR (m)" // top field 6
-	t.Samples[4].Data = make([]float64, 1)
+	sampler.Samples[0].Label = "CPU"
+	sampler.Samples[0].Data = make([]float64, 1)
+	sampler.Samples[1].Label = "MEM"
+	sampler.Samples[1].Data = make([]float64, 1)
+	sampler.Samples[2].Label = "VIRT (m)" // top field 4
+	sampler.Samples[2].Data = make([]float64, 1)
+	sampler.Samples[3].Label = "RES (m)" // top field 5
+	sampler.Samples[3].Data = make([]float64, 1)
+	sampler.Samples[4].Label = "SHR (m)" // top field 6
+	sampler.Samples[4].Data = make([]float64, 1)
 	raw := "(?m)%d.*$"
-	r := regexp.MustCompile(fmt.Sprintf(raw, pid))
+	sampler.regex = regexp.MustCompile(fmt.Sprintf(raw, pid))
+	return sampler
+}
+
+// Take a single sample of the process
+func (t *TopSampler) Probe(pid int) {
+	top := exec.Command("top", "-b", "-n 1", fmt.Sprintf("-p %d", pid))
+	log.Printf("Sampling the process")
+	out, err := top.Output()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fields := strings.Fields(t.regex.FindString(fmt.Sprintf("%s", out)))
+	if len(fields) != 0 {
+		cpu, err := strconv.ParseFloat(fields[8], 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		mem, err := strconv.ParseFloat(fields[9], 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		virt := t.toMB(fields[4])
+		res := t.toMB(fields[5])
+		shr := t.toMB(fields[6])
+
+		t.Samples[0].Data = append(t.Samples[0].Data, cpu) // CPU
+		t.Samples[1].Data = append(t.Samples[1].Data, mem) // MEM
+		t.Samples[2].Data = append(t.Samples[2].Data, virt)
+		t.Samples[3].Data = append(t.Samples[3].Data, res)
+		t.Samples[4].Data = append(t.Samples[3].Data, shr)
+		log.Printf("%+v", fields)
+	}
+}
+
+// Take a sample based on a time.Ticker interval
+func (t *TopSampler) Sample(pid int, ticker *time.Ticker) {
+	t.stop = make(chan bool)
+	raw := "(?m)%d.*$"
+	t.regex = regexp.MustCompile(fmt.Sprintf(raw, pid))
 	for {
 		select {
 		case <-t.stop:
 			return
 		case <-ticker.C:
-			top := exec.Command("top", "-b", "-n 1", fmt.Sprintf("-p %d", pid))
-			log.Printf("Sampling the process")
-			out, err := top.Output()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fields := strings.Fields(r.FindString(fmt.Sprintf("%s", out)))
-			if len(fields) != 0 {
-				cpu, err := strconv.ParseFloat(fields[8], 64)
-				if err != nil {
-					log.Fatal(err)
-				}
-				mem, err := strconv.ParseFloat(fields[9], 64)
-				if err != nil {
-					log.Fatal(err)
-				}
-				virt := t.toMB(fields[4])
-				res := t.toMB(fields[5])
-				shr := t.toMB(fields[6])
-
-				t.Samples[0].Data = append(t.Samples[0].Data, cpu) // CPU
-				t.Samples[1].Data = append(t.Samples[1].Data, mem) // MEM
-				t.Samples[2].Data = append(t.Samples[2].Data, virt)
-				t.Samples[3].Data = append(t.Samples[3].Data, res)
-				t.Samples[4].Data = append(t.Samples[3].Data, shr)
-				log.Printf("%+v", fields)
-			}
+			t.Probe(pid)
 		}
 	}
 }
@@ -211,7 +227,7 @@ func (c *Config) GetSampler() Sampler {
 	if c.Sampler != "TopSampler" {
 		log.Fatal("Unknown sampler")
 	}
-	return &TopSampler{}
+	return NewTopSampler(0)
 }
 
 func Pidof(name string) int {
