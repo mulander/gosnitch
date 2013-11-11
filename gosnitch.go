@@ -230,22 +230,26 @@ func (c *Config) GetSampler() Sampler {
 	return NewTopSampler(0)
 }
 
-func Pidof(name string) int {
+// Uses the pidof command to find the process ID of
+// a running program.
+// Returns an error if no program was found with the
+// requested name.
+func Pidof(name string) (int, error) {
 	cmd := exec.Command("pidof", name)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 
 	if err := cmd.Start(); err != nil {
-		log.Fatalf("Pidof fail: %s", err)
+		return 0, err
 	}
 
 	if err := cmd.Wait(); err != nil {
-		log.Fatalf("Pidof.Wait fail: %s", err)
+		return 0, err
 	}
 
 	pid, err := strconv.ParseInt(strings.Trim(out.String(), "\n"), 10, 32)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return int(pid)
+	return int(pid), nil
 }
