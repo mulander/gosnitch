@@ -25,3 +25,8 @@ func TestProbe(t *testing.T) {
 	s := NewTopSampler(pid)
 	s.Probe(pid)
 }
+
+func TestProbeNotExistingDoesNotPanic(t *testing.T) {
+	s := NewTopSampler(99999999999999999)
+	s.Probe(99999999999999999)
+}
