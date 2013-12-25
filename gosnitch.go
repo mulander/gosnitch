@@ -95,7 +95,7 @@ func NewTopSampler(pid int) Sampler {
 	sampler.Samples[3].Data = make([]float64, 0)
 	sampler.Samples[4].Label = "SHR (m)" // top field 6
 	sampler.Samples[4].Data = make([]float64, 0)
-	raw := "(?m)%d.*$"
+	raw := "(?m)^ *%d.*$"
 	sampler.regex = regexp.MustCompile(fmt.Sprintf(raw, pid))
 	return sampler
 }
