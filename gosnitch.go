@@ -233,7 +233,7 @@ func (c *Config) GetSampler() Sampler {
 // Uses the pidof command to find the process ID of
 // a running program.
 // Returns an error if no program was found with the
-// requested name.
+// requested name or more than one program was found.
 func Pidof(name string) (int, error) {
 	cmd := exec.Command("pidof", name)
 	var out bytes.Buffer
@@ -249,7 +249,7 @@ func Pidof(name string) (int, error) {
 
 	pid, err := strconv.ParseInt(strings.Trim(out.String(), "\n"), 10, 32)
 	if err != nil {
-		log.Fatal(err)
+		return 0, err
 	}
 	return int(pid), nil
 }
